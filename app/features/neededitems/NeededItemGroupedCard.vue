@@ -23,11 +23,11 @@
           <div class="line-clamp-2 min-w-0 text-sm leading-tight font-semibold">
             {{ groupedItem.item.name }}
           </div>
-          <UTooltip v-if="isCraftable" :text="craftableTitle">
+          <AppTooltip v-if="isCraftable" :text="craftableTitle">
             <button type="button" class="inline-flex" @click.stop="goToCraftStation">
               <UIcon name="i-mdi-hammer-wrench" class="h-4 w-4" :class="craftableIconClass" />
             </button>
-          </UTooltip>
+          </AppTooltip>
         </div>
         <div class="mt-1 flex items-center gap-1">
           <span class="text-xs text-gray-400">Total:</span>
@@ -35,7 +35,7 @@
             class="text-lg font-bold"
             :class="isComplete ? 'text-success-400' : 'text-primary-400'"
           >
-            {{ formatNumber(groupedItem.currentCount) }}/{{ formatNumber(groupedItem.total) }}
+            {{ formatCompactNumber(groupedItem.currentCount) }}/{{ formatCompactNumber(groupedItem.total) }}
           </span>
         </div>
       </div>
@@ -164,8 +164,8 @@
   </div>
 </template>
 <script setup lang="ts">
-  import { useMetadataStore, type CraftSource } from '@/stores/useMetadata';
-  import { useProgressStore } from '@/stores/useProgress';
+  import { useCraftableItem } from '@/composables/useCraftableItem';
+  import { formatCompactNumber } from '@/utils/formatters';
   interface GroupedItem {
     itemId: string;
     item: {
@@ -190,6 +190,9 @@
   const props = defineProps<{
     groupedItem: GroupedItem;
   }>();
+  const itemId = computed(() => props.groupedItem.itemId);
+  const { isCraftable, craftableIconClass, goToCraftStation } =
+    useCraftableItem(itemId);
   const metadataStore = useMetadataStore();
   const progressStore = useProgressStore();
   const isComplete = computed(() => {
@@ -198,9 +201,7 @@
   const craftSources = computed(() => {
     return metadataStore.craftSourcesByItemId.get(props.groupedItem.itemId) ?? [];
   });
-  const isCraftable = computed(() => {
-    return craftSources.value.length > 0;
-  });
+  
   const craftSourceStatuses = computed(() => {
     return craftSources.value.map((source: CraftSource) => {
       const currentLevel = progressStore.hideoutLevels?.[source.stationId]?.self ?? 0;
@@ -215,36 +216,8 @@
   const isCraftableAvailable = computed(() => {
     return craftSourceStatuses.value.some((source) => source.isAvailable);
   });
-  const craftStationTargetId = computed(() => {
-    if (!isCraftable.value) {
-      return '';
-    }
-    const available = craftSourceStatuses.value
-      .filter((source) => source.isAvailable)
-      .sort((a, b) => a.stationLevel - b.stationLevel);
-    if (available.length > 0) {
-      return available[0]?.stationId ?? '';
-    }
-    const closest = [...craftSourceStatuses.value].sort((a, b) => {
-      if (a.missingLevels !== b.missingLevels) {
-        return a.missingLevels - b.missingLevels;
-      }
-      return a.stationLevel - b.stationLevel;
-    });
-    return closest[0]?.stationId ?? craftSources.value[0]?.stationId ?? '';
-  });
-  const craftableIconClass = computed(() => {
-    return isCraftableAvailable.value ? 'text-success-400' : 'text-red-400';
-  });
-  const goToCraftStation = async () => {
-    if (!craftStationTargetId.value) {
-      return;
-    }
-    await navigateTo({
-      path: '/hideout',
-      query: { station: craftStationTargetId.value },
-    });
-  };
+
+  
   const craftableTitle = computed(() => {
     if (!isCraftable.value) {
       return '';
@@ -261,9 +234,5 @@
     const remainingText = remainingCount > 0 ? ` +${remainingCount} more` : '';
     return `${prefix}: ${preview.join(', ')}${remainingText}`;
   });
-  const formatNumber = (num: number): string => {
-    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-    if (num >= 1000) return `${Math.round(num / 1000)}k`;
-    return num.toString();
-  };
+  
 </script>
